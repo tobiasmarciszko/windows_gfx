@@ -223,6 +223,9 @@ HRESULT DemoApp::CreateDeviceIndependentResources()
     return hr;
 }
 
+static ID2D1Bitmap * bmp;
+static UINT8* Data;
+
 HRESULT DemoApp::CreateDeviceResources()
 {
     HRESULT hr = S_OK;
@@ -275,6 +278,7 @@ void DemoApp::DiscardDeviceResources()
 
 static unsigned int elapsed = 0;
 static D2D1_RECT_F rectangle1;
+
 
 LRESULT CALLBACK DemoApp::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -412,11 +416,9 @@ HRESULT DemoApp::OnRender()
                 rtSize.height/2 + 50.0f + 100 * cosf((elapsed % 360) * 0.0174533F) // bottom
             );
 
-            ID2D1Bitmap * bmp;
-            HRESULT hr;
 
-            UINT8* Data;
-            Data = (UINT8 *)malloc(height * width * 4);
+            Data = (UINT8 *)malloc(width * height * 4);
+
             for(UINT Y = 0; Y < height; Y++)
               for(UINT X = 0; X < width; X++)
               {
@@ -427,14 +429,19 @@ HRESULT DemoApp::OnRender()
                 PixelData[3] = 255;
               }
 
-            hr = m_pRenderTarget->CreateBitmap(
+            m_pRenderTarget->CreateBitmap(
                 D2D1::SizeU(width, height),
                 Data, // <<--- Wrong, see (a) below
                 width * 4, // <<--- Close but wrong, see (b) below
                 D2D1::BitmapProperties(D2D1::PixelFormat( 		DXGI_FORMAT_B8G8R8A8_UNORM, 		D2D1_ALPHA_MODE_IGNORE 	)), // <<--- Wrong, see (c) below
                 &bmp);
 
+
             m_pRenderTarget->DrawBitmap(bmp);
+            SafeRelease(&bmp);
+            free(bmp);
+            free(Data);
+
             m_pRenderTarget->FillRectangle(&rectangle1, m_pCornflowerBlueBrush);
 
             hr = m_pRenderTarget->EndDraw();
