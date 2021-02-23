@@ -3,6 +3,9 @@
 //
 // And https://docs.microsoft.com/en-us/windows/win32/gdi/drawing-at-timed-intervals
 
+// Investigate how to draw pixels:
+// ID2D1RenderTarget::CreateBitmap() and ID2D1RenderTarget::DrawBitmap()
+
 // Windows Header Files:
 #include <Windows.h>
 
@@ -53,15 +56,10 @@ inline HINSTANCE getHInstance() {
 
 #endif
 
-//#ifndef HINST_THISCOMPONENT
-//EXTERN_C IMAGE_DOS_HEADER __ImageBase;
-//#define HINST_THISCOMPONENT ((HINSTANCE)&__ImageBase)
-//#endif
-
 class DemoApp
 {
 public:
-    DemoApp();
+    DemoApp() = default;
     ~DemoApp();
 
     // Register the window class and call methods for instantiating drawing resources
@@ -98,22 +96,12 @@ private:
         );
 
 private:
-    HWND m_hwnd;
-    ID2D1Factory* m_pDirect2dFactory;
-    ID2D1HwndRenderTarget* m_pRenderTarget;
-    ID2D1SolidColorBrush* m_pLightSlateGrayBrush;
-    ID2D1SolidColorBrush* m_pCornflowerBlueBrush;
+    HWND m_hwnd{nullptr};
+    ID2D1Factory* m_pDirect2dFactory{nullptr};
+    ID2D1HwndRenderTarget* m_pRenderTarget{nullptr};
+    ID2D1SolidColorBrush* m_pLightSlateGrayBrush{nullptr};
+    ID2D1SolidColorBrush* m_pCornflowerBlueBrush{nullptr};
 };
-
-DemoApp::DemoApp() :
-    m_hwnd(nullptr),
-    m_pDirect2dFactory(nullptr),
-    m_pRenderTarget(nullptr),
-    m_pLightSlateGrayBrush(nullptr),
-    m_pCornflowerBlueBrush(nullptr)
-{
-}
-
 
 DemoApp::~DemoApp()
 {
@@ -207,13 +195,13 @@ HRESULT DemoApp::Initialize()
             WS_OVERLAPPEDWINDOW,
             CW_USEDEFAULT,
             CW_USEDEFAULT,
-            static_cast<UINT>(ceil(640.f * dpiX / 96.f)),
-            static_cast<UINT>(ceil(480.f * dpiY / 96.f)),
-            NULL,
-            NULL,
+            static_cast<INT>(ceil(640.f * dpiX / 96.f)),
+            static_cast<INT>(ceil(480.f * dpiY / 96.f)),
+            nullptr,
+            nullptr,
             getHInstance(),
-            this
-            );
+            this);
+
         hr = m_hwnd ? S_OK : E_FAIL;
         if (SUCCEEDED(hr))
         {
@@ -462,9 +450,9 @@ int WINAPI WinMain(
     // by the process.
     // The return value is ignored, because we want to continue running in the
     // unlikely event that HeapSetInformation fails.
-    HeapSetInformation(NULL, HeapEnableTerminationOnCorruption, NULL, 0);
+    HeapSetInformation(nullptr, HeapEnableTerminationOnCorruption, nullptr, 0);
 
-    if (SUCCEEDED(CoInitialize(NULL)))
+    if (SUCCEEDED(CoInitialize(nullptr)))
     {
         {
             DemoApp app;
