@@ -77,3 +77,4 @@ build/*
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
+.cache/clangd/index/main.cpp.F5CF6BBBC211A95B.idx
