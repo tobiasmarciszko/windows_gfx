@@ -22,6 +22,79 @@
 //#include <dwrite.h>
 //#include <wincodec.h>
 
+#include <array>
+
+const int FIRE_WIDTH  = 640;
+const int FIRE_HEIGHT = 480;
+static char firePixels[FIRE_WIDTH*FIRE_HEIGHT];
+
+struct Color {
+    Color(UINT8 r, UINT8 g, UINT8 b): r{r}, g{g}, b{b} {}
+    UINT8 r;
+    UINT8 g;
+    UINT8 b;
+};
+
+static std::array<Color, 37> palette{
+    Color(0x07,0x07,0x07),
+    Color(0x1F,0x07,0x07),
+    Color(0x2F,0x0F,0x07),
+    Color(0x47,0x0F,0x07),
+    Color(0x57,0x17,0x07),
+    Color(0x67,0x1F,0x07),
+    Color(0x77,0x1F,0x07),
+    Color(0x8F,0x27,0x07),
+    Color(0x9F,0x2F,0x07),
+    Color(0xAF,0x3F,0x07),
+    Color(0xBF,0x47,0x07),
+    Color(0xC7,0x47,0x07),
+    Color(0xDF,0x4F,0x07),
+    Color(0xDF,0x57,0x07),
+    Color(0xDF,0x57,0x07),
+    Color(0xD7,0x5F,0x07),
+    Color(0xD7,0x5F,0x07),
+    Color(0xD7,0x67,0x0F),
+    Color(0xCF,0x6F,0x0F),
+    Color(0xCF,0x77,0x0F),
+    Color(0xCF,0x7F,0x0F),
+    Color(0xCF,0x87,0x17),
+    Color(0xC7,0x87,0x17),
+    Color(0xC7,0x8F,0x17),
+    Color(0xC7,0x97,0x1F),
+    Color(0xBF,0x9F,0x1F),
+    Color(0xBF,0x9F,0x1F),
+    Color(0xBF,0xA7,0x27),
+    Color(0xBF,0xA7,0x27),
+    Color(0xBF,0xAF,0x2F),
+    Color(0xB7,0xAF,0x2F),
+    Color(0xB7,0xB7,0x2F),
+    Color(0xB7,0xB7,0x37),
+    Color(0xCF,0xCF,0x6F),
+    Color(0xDF,0xDF,0x9F),
+    Color(0xEF,0xEF,0xC7),
+    Color(0xFF,0xFF,0xFF)
+};
+
+static void spreadFire(int src) {
+    auto pixel = firePixels[src];
+    if (pixel == 0) {
+        firePixels[src - FIRE_WIDTH] = 0;
+    } else {
+        int randIdx = rand() % 3;
+        int dst = src - randIdx + 1;
+        firePixels[dst - FIRE_WIDTH] = pixel - (randIdx & 1);
+    }
+}
+
+static void doFire() {
+    for (int x = 0 ; x < FIRE_WIDTH; x++) {
+        for (int y = 1; y < FIRE_HEIGHT; y++) {
+            spreadFire(y * FIRE_WIDTH + x);
+        }
+    }
+}
+
+
 template<class Interface>
 inline void SafeRelease(
     Interface **ppInterfaceToRelease
@@ -295,6 +368,13 @@ LRESULT CALLBACK DemoApp::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM
             reinterpret_cast<LONG_PTR>(pDemoApp)
             );
 
+        for (int i = 0; i < FIRE_WIDTH*FIRE_HEIGHT; i++) {
+                firePixels[i] = 0;
+            }
+
+            for(int i = 0; i < FIRE_WIDTH; i++) {
+                firePixels[(FIRE_HEIGHT-1)*FIRE_WIDTH + i] = 36;
+            }
 
         SetTimer(hwnd, 1, 10, nullptr);
 
@@ -417,15 +497,24 @@ HRESULT DemoApp::OnRender()
             );
 
 
+            doFire();
+
+//            for(int y = 0; y < FIRE_HEIGHT; y++) {
+//                auto rowData = framebuffer.scanLine(y);
+//                for(int x = 0; x < FIRE_WIDTH; x++) {
+//                    rowData[x] = firePixels[y * FIRE_WIDTH + x];
+//                }
+//            }
+
             Data = (UINT8 *)malloc(width * height * 4);
 
             for(UINT Y = 0; Y < height; Y++)
               for(UINT X = 0; X < width; X++)
               {
                 UINT8* PixelData = Data + ((Y * width) + X) * 4;
-                PixelData[0] = elapsed % 255; //unsigned integer blue in range 0..255;
-                PixelData[1] = (Y) % 255; // unsigned integer red in range 0..255;
-                PixelData[2] = (X) % 255; // unsigned integer green in range 0..255;
+                PixelData[0] = palette[firePixels[Y * FIRE_WIDTH + X]].r; //unsigned integer blue in range 0..255;
+                PixelData[1] = palette[firePixels[Y * FIRE_WIDTH + X]].g; // unsigned integer red in range 0..255;
+                PixelData[2] = palette[firePixels[Y * FIRE_WIDTH + X]].b; // unsigned integer green in range 0..255;
                 PixelData[3] = 255;
               }
 
