@@ -23,36 +23,15 @@
 //#include <wincodec.h>
 
 #include <array>
-
-const int FIRE_WIDTH  = 640;
-const int FIRE_HEIGHT = 480;
-static char firePixels[FIRE_WIDTH*FIRE_HEIGHT];
+#include <vector>
 
 struct Color {
     Color(UINT8 r_, UINT8 g_, UINT8 b_): r{r_}, g{g_}, b{b_} {}
-    UINT8 r;
-    UINT8 g;
     UINT8 b;
+    UINT8 g;
+    UINT8 r;
+    UINT8 a{255};
 };
-
-static void spreadFire(int src) {
-    auto pixel = firePixels[src];
-    if (pixel == 0) {
-        firePixels[src - FIRE_WIDTH] = 0;
-    } else {
-        int randIdx = rand() % 3;
-        int dst = src - randIdx + 1;
-        firePixels[dst - FIRE_WIDTH] = pixel - (randIdx & 1);
-    }
-}
-
-static void doFire() {
-    for (int x = 0 ; x < FIRE_WIDTH; x++) {
-        for (int y = 1; y < FIRE_HEIGHT; y++) {
-            spreadFire(y * FIRE_WIDTH + x);
-        }
-    }
-}
 
 
 template<class Interface>
@@ -63,24 +42,21 @@ inline void SafeRelease(
     if (*ppInterfaceToRelease != nullptr)
     {
         (*ppInterfaceToRelease)->Release();
-
         (*ppInterfaceToRelease) = nullptr;
     }
 }
 
-
-#ifndef Assert
-#if defined( DEBUG ) || defined( _DEBUG )
-#define Assert(b) do {if (!(b)) {OutputDebugStringA("Assert: " #b "\n");}} while(0)
-#else
-#define Assert(b)
-#endif //DEBUG || _DEBUG
-#endif
-
+// #ifndef Assert
+// #if defined( DEBUG ) || defined( _DEBUG )
+// #define Assert(b) do {if (!(b)) {OutputDebugStringA("Assert: " #b "\n");}} while(0)
+// #else
+// #define Assert(b)
+// #endif //DEBUG || _DEBUG
+// #endif
 
 #ifndef HINST_THISCOMPONENT
 EXTERN_C IMAGE_DOS_HEADER __ImageBase;
-#define HINST_THISCOMPONENT ((HINSTANCE)&__ImageBase)
+// #define HINST_THISCOMPONENT ((HINSTANCE)&__ImageBase)
 
 // avoiding C-style cast in C++
 inline HINSTANCE getHInstance() {
@@ -100,6 +76,42 @@ public:
 
     // Process and dispatch messages
     void RunMessageLoop();
+
+    inline void spreadFire(int src) {
+        
+        if (src > m_firePixels.size() - 1) return;
+
+        auto pixel = m_firePixels[src];
+        if (pixel == 0) {
+            m_firePixels[src - m_width] = 0;
+        } else {
+            int randIdx = rand() % 3;
+            int dst = src - randIdx + 1;
+            m_firePixels[dst - m_width] = pixel - (randIdx & 1);
+        }   
+    }
+
+    inline void doFire() {
+        for (int x = 0 ; x < m_width; x++) {
+            for (int y = 1; y < m_height; y++) {
+                spreadFire(y * m_width + x);
+            }
+        }
+    }
+
+    inline void initFire() {
+
+        m_firePixels.resize(m_width*m_height, 0);
+        m_pixelData.resize(m_width*m_height, Color{0, 0, 0});
+        
+        for (int i = 0; i < m_width*m_height; i++) {
+            m_firePixels.at(i) = 0;
+        }   
+
+        for(int i = 0; i < m_width; i++) {
+            m_firePixels.at((m_height-1)*m_width + i) = 36;
+        }
+    }
 
 private:
     // Initialize device-independent resources.
@@ -174,6 +186,14 @@ private:
         Color(0xEF,0xEF,0xC7),
         Color(0xFF,0xFF,0xFF)
     };
+
+    UINT32 m_width{640};
+    UINT32 m_height{480};
+    // static constexpr int FIRE_WIDTH{640};
+    // static constexpr int FIRE_HEIGHT{480};
+    std::vector<char> m_firePixels{0};
+    std::vector<Color> m_pixelData{Color{0, 0, 0}};
+    ID2D1Bitmap *m_bmp;
 };
 
 DemoApp::~DemoApp()
@@ -260,6 +280,12 @@ HRESULT DemoApp::Initialize()
         // to create its own windows.
         m_pDirect2dFactory->GetDesktopDpi(&dpiX, &dpiY);
 
+
+        m_width = 640;
+        m_height = 480;
+
+        initFire();
+
         // Create the window.
         m_hwnd = CreateWindow(
             L"D2DDemoApp",
@@ -295,8 +321,7 @@ HRESULT DemoApp::CreateDeviceIndependentResources()
     return hr;
 }
 
-static ID2D1Bitmap * bmp;
-static UINT8* Data;
+// static UINT8* Data;
 
 HRESULT DemoApp::CreateDeviceResources()
 {
@@ -311,6 +336,9 @@ HRESULT DemoApp::CreateDeviceResources()
             static_cast<UINT32>(rc.right - rc.left),
             static_cast<UINT32>(rc.bottom - rc.top)
             );
+
+            m_width = size.width;
+            m_height = size.height;
 
         // Create a Direct2D render target.
         hr = m_pDirect2dFactory->CreateHwndRenderTarget(
@@ -336,6 +364,13 @@ HRESULT DemoApp::CreateDeviceResources()
                 &m_pCornflowerBlueBrush
                 );
         }
+
+        hr = m_pRenderTarget->CreateBitmap(
+            D2D1::SizeU(m_width, m_height),
+            D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_IGNORE)),
+            &m_bmp);
+
+        initFire();
     }
 
     return hr;
@@ -346,11 +381,11 @@ void DemoApp::DiscardDeviceResources()
     SafeRelease(&m_pRenderTarget);
     SafeRelease(&m_pLightSlateGrayBrush);
     SafeRelease(&m_pCornflowerBlueBrush);
+    SafeRelease(&m_bmp);
 }
 
 static unsigned int elapsed = 0;
 static D2D1_RECT_F rectangle1;
-
 
 LRESULT CALLBACK DemoApp::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -367,15 +402,7 @@ LRESULT CALLBACK DemoApp::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM
             reinterpret_cast<LONG_PTR>(pDemoApp)
             );
 
-        for (int i = 0; i < FIRE_WIDTH*FIRE_HEIGHT; i++) {
-                firePixels[i] = 0;
-            }
-
-            for(int i = 0; i < FIRE_WIDTH; i++) {
-                firePixels[(FIRE_HEIGHT-1)*FIRE_WIDTH + i] = 36;
-            }
-
-        SetTimer(hwnd, 1, 10, nullptr);
+        SetTimer(hwnd, 1, 60/1000, nullptr);
 
         result = 1;
     }
@@ -400,6 +427,7 @@ LRESULT CALLBACK DemoApp::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM
                     pDemoApp->OnResize(width, height);
                     rectangle1.top +=1;
                     rectangle1.bottom +=1;
+
                 }
                 result = 0;
                 wasHandled = true;
@@ -463,74 +491,51 @@ HRESULT DemoApp::OnRender()
             m_pRenderTarget->SetTransform(D2D1::Matrix3x2F::Identity());
             m_pRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::White));
 
-            D2D1_SIZE_F rtSize = m_pRenderTarget->GetSize();
+            // D2D1_SIZE_F rtSize = m_pRenderTarget->GetSize();
             // Draw a grid background.
-            int width = static_cast<int>(rtSize.width);
-            int height = static_cast<int>(rtSize.height);
+            // int width = static_cast<int>(rtSize.width);
+            // int height = static_cast<int>(rtSize.height);
 
-            for (int x = 0; x < width; x += 10)
-            {
-                m_pRenderTarget->DrawLine(
-                    D2D1::Point2F(static_cast<FLOAT>(x), 0.0f),
-                    D2D1::Point2F(static_cast<FLOAT>(x), rtSize.height),
-                    m_pLightSlateGrayBrush,
-                    0.5f
-                    );
-            }
+            // for (int x = 0; x < width; x += 10)
+            // {
+            //     m_pRenderTarget->DrawLine(
+            //         D2D1::Point2F(static_cast<FLOAT>(x), 0.0f),
+            //         D2D1::Point2F(static_cast<FLOAT>(x), rtSize.height),
+            //         m_pLightSlateGrayBrush,
+            //         0.5f
+            //         );
+            // }
 
-            for (int y = 0; y < height; y += 10)
-            {
-                m_pRenderTarget->DrawLine(
-                    D2D1::Point2F(0.0f, static_cast<FLOAT>(y)),
-                    D2D1::Point2F(rtSize.width, static_cast<FLOAT>(y)),
-                    m_pLightSlateGrayBrush,
-                    0.5f
-                    );
-            }
+            // for (int y = 0; y < height; y += 10)
+            // {
+            //     m_pRenderTarget->DrawLine(
+            //         D2D1::Point2F(0.0f, static_cast<FLOAT>(y)),
+            //         D2D1::Point2F(rtSize.width, static_cast<FLOAT>(y)),
+            //         m_pLightSlateGrayBrush,
+            //         0.5f
+            //         );
+            // }
 
-            rectangle1 = D2D1::RectF(
-                rtSize.width/2 - 50.0f, // left
-                rtSize.height/2 - 50.0f + 100 * cosf((elapsed % 360) * 0.0174533F), // top
-                rtSize.width/2 + 50.0f, // right
-                rtSize.height/2 + 50.0f + 100 * cosf((elapsed % 360) * 0.0174533F) // bottom
-            );
+            // rectangle1 = D2D1::RectF(
+            //     rtSize.width/2 - 50.0f, // left
+            //     rtSize.height/2 - 50.0f + 100 * cosf((elapsed % 360) * 0.0174533F), // top
+            //     rtSize.width/2 + 50.0f, // right
+            //     rtSize.height/2 + 50.0f + 100 * cosf((elapsed % 360) * 0.0174533F) // bottom
+            // );
 
 
             doFire();
 
-//            for(int y = 0; y < FIRE_HEIGHT; y++) {
-//                auto rowData = framebuffer.scanLine(y);
-//                for(int x = 0; x < FIRE_WIDTH; x++) {
-//                    rowData[x] = firePixels[y * FIRE_WIDTH + x];
-//                }
-//            }
+            // Convert the palette data to "real" colors
+            size_t index{0};
+            for (auto&& pixelData: m_firePixels) {
+                m_pixelData.at(index++) = m_palette.at(pixelData);
+            }
 
-            Data = (UINT8 *)malloc(width * height * 4);
-
-            for(UINT Y = 0; Y < height; Y++)
-              for(UINT X = 0; X < width; X++)
-              {
-                UINT8* PixelData = Data + ((Y * width) + X) * 4;
-                PixelData[0] = m_palette[firePixels[Y * FIRE_WIDTH + X]].b; //unsigned integer blue in range 0..255;
-                PixelData[1] = m_palette[firePixels[Y * FIRE_WIDTH + X]].g; // unsigned integer green in range 0..255;
-                PixelData[2] = m_palette[firePixels[Y * FIRE_WIDTH + X]].r; // unsigned integer red in range 0..255;
-                PixelData[3] = 255;
-              }
-
-            m_pRenderTarget->CreateBitmap(
-                D2D1::SizeU(width, height),
-                Data,
-                width * 4,
-                D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_IGNORE)), // <<--- Wrong, see (c) below
-                &bmp);
-
-
-            m_pRenderTarget->DrawBitmap(bmp);
-            SafeRelease(&bmp);
-            free(bmp);
-            free(Data);
-
-            m_pRenderTarget->FillRectangle(&rectangle1, m_pCornflowerBlueBrush);
+            // Copy over the colors (pixel data) to the bitmap
+            m_bmp->CopyFromMemory(nullptr, m_pixelData.data(), m_width * 4);
+            m_pRenderTarget->DrawBitmap(m_bmp);
+            // m_pRenderTarget->FillRectangle(&rectangle1, m_pCornflowerBlueBrush);
 
             hr = m_pRenderTarget->EndDraw();
         }
@@ -552,6 +557,16 @@ void DemoApp::OnResize(UINT width, UINT height)
         // error here, because the error will be returned again
         // the next time EndDraw is called.
         m_pRenderTarget->Resize(D2D1::SizeU(width, height));
+        m_width = width;
+        m_height = height;
+
+        SafeRelease(&m_bmp);
+        (void)m_pRenderTarget->CreateBitmap(
+            D2D1::SizeU(m_width, m_height),
+            D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_IGNORE)),
+            &m_bmp);
+
+        initFire();
     }
 }
 
