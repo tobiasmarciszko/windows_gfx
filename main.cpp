@@ -26,13 +26,12 @@
 #include <vector>
 
 struct Color {
-    Color(UINT8 r_, UINT8 g_, UINT8 b_): r{r_}, g{g_}, b{b_} {}
+    Color(UINT8 r_, UINT8 g_, UINT8 b_):  b{b_}, g{g_}, r{r_} {}
     UINT8 b;
     UINT8 g;
     UINT8 r;
     UINT8 a{255};
 };
-
 
 template<class Interface>
 inline void SafeRelease(
@@ -77,23 +76,21 @@ public:
     // Process and dispatch messages
     void RunMessageLoop();
 
-    inline void spreadFire(int src) {
+    inline void spreadFire(const size_t& src) {
         
-        if (src > m_firePixels.size() - 1) return;
-
-        auto pixel = m_firePixels[src];
+        const auto pixel = m_firePixels[src];
         if (pixel == 0) {
             m_firePixels[src - m_width] = 0;
         } else {
-            int randIdx = rand() % 3;
-            int dst = src - randIdx + 1;
+            const auto randIdx = rand() % 3;
+            const auto dst = src - static_cast<size_t>(randIdx) + 1;
             m_firePixels[dst - m_width] = pixel - (randIdx & 1);
         }   
     }
 
     inline void doFire() {
-        for (int x = 0 ; x < m_width; x++) {
-            for (int y = 1; y < m_height; y++) {
+        for (size_t x = 0 ; x < m_width; x++) {
+            for (size_t y = 1; y < m_height; y++) {
                 spreadFire(y * m_width + x);
             }
         }
@@ -104,11 +101,13 @@ public:
         m_firePixels.resize(m_width*m_height, 0);
         m_pixelData.resize(m_width*m_height, Color{0, 0, 0});
         
-        for (int i = 0; i < m_width*m_height; i++) {
+        // Black background
+        for (size_t i = 0; i < m_width*m_height; i++) {
             m_firePixels.at(i) = 0;
         }   
 
-        for(int i = 0; i < m_width; i++) {
+        // Bottom line is white (where the fire starts from)
+        for(size_t i = 0; i < m_width; i++) {
             m_firePixels.at((m_height-1)*m_width + i) = 36;
         }
     }
@@ -279,7 +278,6 @@ HRESULT DemoApp::Initialize()
         // The factory returns the current system DPI. This is also the value it will use
         // to create its own windows.
         m_pDirect2dFactory->GetDesktopDpi(&dpiX, &dpiY);
-
 
         m_width = 640;
         m_height = 480;
@@ -529,7 +527,7 @@ HRESULT DemoApp::OnRender()
             // Convert the palette data to "real" colors
             size_t index{0};
             for (auto&& pixelData: m_firePixels) {
-                m_pixelData.at(index++) = m_palette.at(pixelData);
+                m_pixelData.at(index++) = m_palette.at(static_cast<size_t>(pixelData));
             }
 
             // Copy over the colors (pixel data) to the bitmap
